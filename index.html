@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en" style="background:#000;color-scheme:dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Robot Face</title>
+<style>
+:root{--c:#5ef0ff;--bg:#000;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:#cfe;font-family:system-ui,sans-serif;overflow:hidden;touch-action:manipulation}
+#face{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+#eyes{display:flex;gap:9vmin;transition:transform .25s ease-out}
+.eye{position:relative;width:24vmin;height:30vmin;background:var(--c);border-radius:42%;overflow:hidden;
+ box-shadow:0 0 6vmin var(--c);transition:transform .2s,border-radius .3s,background .4s,box-shadow .4s}
+.eye.blink{transform:scaleY(.06)}
+.lid{position:absolute;left:-25%;width:150%;height:65%;background:var(--bg);transition:transform .3s}
+.lid.t{top:0;transform:translateY(-102%)}
+.lid.b{bottom:0;transform:translateY(102%);border-radius:50% 50% 0 0}
+[data-mood=angry]{--c:#ff5a4d}
+[data-mood=angry] .l .lid.t{transform:translateY(-50%) rotate(20deg)}
+[data-mood=angry] .r .lid.t{transform:translateY(-50%) rotate(-20deg)}
+[data-mood=sad]{--c:#7aa2ff}
+[data-mood=sad] .l .lid.t{transform:translateY(-50%) rotate(-20deg)}
+[data-mood=sad] .r .lid.t{transform:translateY(-50%) rotate(20deg)}
+[data-mood=happy]{--c:#8dff9a}
+[data-mood=happy] .lid.b{transform:translateY(38%)}
+[data-mood=sleepy] .lid.t{transform:translateY(-12%)}
+[data-mood=sleepy]{--c:#9aa}
+[data-mood=surprised] .eye{transform:scale(1.18);border-radius:50%}
+[data-mood=love]{--c:#ff6fb5}
+[data-mood=love] .eye{border-radius:50% 50% 50% 50%/40% 40% 60% 60%;animation:beat .7s infinite}
+[data-mood=dizzy] .eye{border-radius:50%;animation:spin .6s linear infinite}
+@keyframes beat{50%{transform:scale(1.12)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){[data-mood=love] .eye,[data-mood=dizzy] .eye{animation:none}}
+#cap{position:fixed;left:0;right:0;bottom:2.5vmin;text-align:center;font-size:4vmin;color:#9cc;min-height:5vmin;pointer-events:none}
+#gear{position:fixed;top:8px;right:8px;width:44px;height:44px;border:0;border-radius:50%;background:#111;color:#7aa;font-size:22px}
+#panel{position:fixed;top:56px;right:8px;background:#0d1618;border:1px solid #234;border-radius:12px;padding:12px;display:none;z-index:5;max-width:230px}
+#panel.open{display:block}
+#panel{max-height:calc(100% - 70px);overflow:auto}
+#panel .in{width:100%;padding:6px;background:#000;color:#cfe;border:1px solid #345;border-radius:8px;font-size:15px}
+#link{font-size:13px;color:#7aa;margin:4px 0}
+#fsb{position:fixed;inset:0;z-index:8;background:rgba(0,0,0,.9);color:#8ab;display:none;align-items:center;justify-content:center;font-size:5vmin}
+html,body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+#gear{top:calc(8px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px))}
+#panel{top:calc(56px + env(safe-area-inset-top,0px))}
+#panel label,#panel select{display:block;margin:6px 0;font-size:15px}
+#panel select{width:100%;padding:6px;background:#000;color:#cfe;border:1px solid #345;border-radius:8px}
+.pad{display:grid;grid-template-columns:repeat(3,52px);gap:6px;justify-content:center;margin-top:8px}
+.pad button{height:46px;border:0;border-radius:10px;background:#1c3a3f;color:#cfe;font-size:20px}
+.pad .stop{background:#7a2323}
+#vid{position:fixed;left:8px;top:8px;width:26vmin;border-radius:10px;opacity:.9;display:none;transform:none}
+#start{position:fixed;inset:0;z-index:9;background:rgba(0,0,0,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:20px}
+#start button{font-size:22px;padding:16px 34px;border:0;border-radius:14px;background:var(--c);color:#001}
+#start p{margin:0;color:#8ab;max-width:420px;line-height:1.4}
+input[type=range],input[type=checkbox]{accent-color:var(--c)}
+#try button{margin:3px 3px 0 0;padding:6px 9px;font-size:13px;border:0;border-radius:9px;background:#1c3a3f;color:#cfe}
+#dist{position:fixed;left:10px;bottom:2.5vmin;font-size:3vmin;color:#7aa}
+</style>
+</head>
+<body>
+<div id="face" data-mood="normal">
+  <div id="eyes">
+    <div class="eye l"><div class="lid t"></div><div class="lid b"></div></div>
+    <div class="eye r"><div class="lid t"></div><div class="lid b"></div></div>
+  </div>
+</div>
+<video id="vid" playsinline muted></video>
+<div id="cap"></div>
+<div id="dist"></div>
+<button id="gear" aria-label="Settings">⚙</button>
+<div id="panel">
+  <label>Language
+    <select id="lang"><option value="en-IN">English</option><option value="hi-IN">Hindi</option><option value="ml-IN">Malayalam</option></select>
+  </label>
+  <label>Camera
+    <select id="cam"><option value="user">Front camera</option><option value="environment">Back camera</option></select>
+  </label>
+  <label><input type="checkbox" id="flip"> Flip left/right</label>
+  <label>Speed <input type="range" id="spd" min="90" max="255" value="200" style="width:100%"></label>
+  <label>Car code (same as in the sketch)<input class="in" id="code" placeholder="12 letters or digits" autocomplete="off"></label>
+  <div id="link">Car link: not set</div>
+  <div id="try"><div style="margin:8px 0 2px;font-size:14px">Tap to try:</div></div>
+  <label><input type="checkbox" id="prev"> Show camera preview</label>
+  <div class="pad">
+    <span></span><button data-d="F">▲</button><span></span>
+    <button data-d="L">◀</button><button data-d="S" class="stop">■</button><button data-d="R">▶</button>
+    <span></span><button data-d="B">▼</button><span></span>
+  </div>
+</div>
+<div id="fsb">Tap for full screen</div>
+<div id="start">
+  <p>Mount the phone on the car. Allow the camera and microphone when asked.</p>
+  <button id="go">Wake up</button>
+  <p id="err"></p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
+<script>
+const $ = id => document.getElementById(id);
+const face = $("face"), eyes = $("eyes"), cap = $("cap"), vid = $("vid");
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let model = null, seen = [], following = false, on = false, speaking = false, rec, moodT, moveT, last = "", danceOn = false;
+let target = "person", finding = false, guard = false, idleAsleep = false, lastSeenP = 0, lastAlert = 0, lastWarn = 0, lastAct = Date.now();
+
+/* ---------- Eyes ---------- */
+function mood(m, ms) {
+  face.dataset.mood = m;
+  clearTimeout(moodT);
+  if (ms) moodT = setTimeout(() => face.dataset.mood = "normal", ms);
+}
+function look(x, y) { eyes.style.transform = `translate(${x * 9}vmin,${y * 6}vmin)`; }
+(function blinker() {
+  document.querySelectorAll(".eye").forEach(e => e.classList.add("blink"));
+  setTimeout(() => document.querySelectorAll(".eye").forEach(e => e.classList.remove("blink")), 140);
+  setTimeout(blinker, 2200 + Math.random() * 3500);
+})();
+(function wander() {  // idle glance when nothing is detected
+  if (!seen.length && !danceOn) look(Math.random() * 2 - 1, Math.random() * 1.2 - .6);
+  setTimeout(wander, 1800 + Math.random() * 2500);
+})();
+
+/* ---------- Car ---------- */
+function send(d) {
+  if (d === last && d !== "S") return;
+  last = d;
+  car(d);
+}
+function run(d, ms) {
+  clearTimeout(moveT); send(d);
+  if (d !== "S") moveT = setTimeout(() => { last = ""; send("S"); }, ms);
+}
+document.querySelectorAll("[data-d]").forEach(b => b.onclick = () => run(b.dataset.d, b.dataset.d === "F" || b.dataset.d === "B" ? 1200 : 450));
+
+async function dance() {
+  danceOn = true; mood("happy");
+  for (const [d, ms, lx] of [["F",450,0],["B",450,0],["L",400,-1],["R",800,1],["L",400,-1],["F",350,0],["B",350,0]]) {
+    if (!danceOn) break;
+    look(lx, 0); last = ""; send(d); await sleep(ms);
+  }
+  last = ""; send("S"); look(0, 0); mood("normal"); danceOn = false;
+}
+
+/* ---------- Voice out ---------- */
+function say(t) {
+  cap.textContent = t;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(t);
+  u.lang = /[^\x00-\x7f]/.test(t) ? $("lang").value : "en-IN";
+  speaking = true; try { rec && rec.stop(); } catch (e) {}
+  u.onend = u.onerror = () => { speaking = false; if (on) startRec(); };
+  speechSynthesis.speak(u);
+}
+function describe() {
+  const names = [...new Set(seen.map(s => s.name))];
+  if (!names.length) { mood("sad", 2000); return say("I don't see anything."); }
+  mood("surprised", 1500);
+  say("I see " + names.join(", ").replace(/, ([^,]*)$/, " and $1"));
+}
+
+/* ---------- Voice commands ---------- */
+const C = [
+ {k:["stop","halt","ruko","nillu","nirthu","നില്ക്ക","നിർത്തു","रुको"], f:()=>{danceOn=false;following=false;finding=false;guard=false;run("S",0);mood("normal");cap.textContent="Stopped";}},
+ {k:["follow","follow me","mere peeche","pinthudaru"], f:()=>{target="person";finding=false;following=true;mood("happy");say("Okay, I will follow you.");}},
+ {k:["guard","guard mode","patrol","chowkidar"], f:()=>{guard=true;following=false;run("S",0);mood("angry",1500);say("Guard mode on. I am watching.");}},
+ {k:["faster","speed up","fast"], f:()=>setSpd(40)},
+ {k:["slower","slow down","slow"], f:()=>setSpd(-40)},
+ {k:["full speed","maximum speed"], f:()=>setSpd(255)},
+ {k:["lights on","light on","headlight on"], f:()=>{car("O");cap.textContent="Light on";}},
+ {k:["lights off","light off","headlight off"], f:()=>{car("X");cap.textContent="Light off";}},
+ {k:["time","what time"], f:()=>say("It is " + new Date().toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}))},
+ {k:["joke","funny"], f:()=>{mood("happy",4000);say(JOKES[Math.floor(Math.random()*JOKES.length)]);}},
+ {k:["your name","who are you"], f:()=>say("I am your robot car. I can see, talk and drive.")},
+ {k:["help","commands"], f:()=>say("Try forward, follow me, find a bottle, how many people, guard, dance, or tell me a joke.")},
+ {k:["what do you see","what you see","see","look","kya dikha","enthu kaanunnu"], f:describe},
+ {k:["hello","hi","hey","namaste","namaskaram"], f:()=>{mood("happy",2500);say("Hello! I am your robot.");}},
+ {k:["happy","smile","khush"], f:()=>mood("happy",5000)},
+ {k:["sad","cry"], f:()=>mood("sad",5000)},
+ {k:["angry","mad","gussa"], f:()=>mood("angry",5000)},
+ {k:["love","heart","pyaar"], f:()=>mood("love",5000)},
+ {k:["wow","surprise","surprised"], f:()=>mood("surprised",3000)},
+ {k:["sleep","sleepy","good night"], f:()=>{following=false;run("S",0);mood("sleepy");}},
+ {k:["wake","wake up","normal"], f:()=>mood("normal")},
+ {k:["turn around","u-turn","u turn"], f:()=>run("R",900)},
+ {k:["spin","circle","rotate","dizzy"], f:()=>{mood("dizzy",2000);run("R",2000);}},
+ {k:["dance","naach","nritham","നൃത്തം","नाच"], f:dance},
+ {k:["back","reverse","backward","peeche","pinnottu","പിന്നോട്ട്","पीछे"], f:()=>{look(0,.4);run("B",1200);}},
+ {k:["forward","ahead","go","straight","aage","munnottu","മുന്നോട്ട്","आगे"], f:()=>{look(0,-.3);run("F",1200);}},
+ {k:["left","baayein","idathu","ഇടത്","बाएं"], f:()=>{look(-1,0);run("L",450);}},
+ {k:["right","daayein","valathu","വലത്","दाएं"], f:()=>{look(1,0);run("R",450);}},
+];
+function has(text, words, k) { return /[^\x00-\x7f ]| /.test(k) ? text.includes(k) : words.includes(k); }
+function handle(t) {
+  t = t.toLowerCase().trim(); const w = t.split(/\s+/);
+  cap.textContent = "“" + t + "”";
+  lastAct = Date.now();
+  if (face.dataset.mood === "sleepy") { mood("normal"); idleAsleep = false; }
+  if (chat(t, w)) return;
+  let cls = COCO.find(c => t.includes(c));
+  if (!cls) for (const a in ALIAS) if (t.includes(a)) cls = ALIAS[a];
+  if (cls && !w.includes("stop")) {
+    if (/how many|count/.test(t)) { const n = seen.filter(s => s.name === cls).length; say(n + " " + cls + (n === 1 ? "" : "s")); return; }
+    if (/find|search|look for|follow|chase|go to/.test(t)) {
+      target = cls; finding = /find|search|look for/.test(t); following = true; guard = false;
+      mood("happy"); say((finding ? "Searching for the " : "Following the ") + cls); return;
+    }
+  }
+  for (const c of C) if (c.k.some(k => has(t, w, k))) { c.f(); return; }
+  cap.textContent = "“" + t + "” (not a command)";
+}
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+function startRec() {
+  if (!SR || speaking) return;
+  rec = new SR(); rec.lang = $("lang").value; rec.continuous = true;
+  rec.onresult = e => handle(e.results[e.results.length - 1][0].transcript);
+  rec.onend = () => { if (on && !speaking) setTimeout(startRec, 250); };
+  try { rec.start(); } catch (e) {}
+}
+
+/* ---------- Object detection ---------- */
+async function detect() {
+  if (model && vid.videoWidth) {
+    const W = vid.videoWidth, H = vid.videoHeight;
+    const p = (await model.detect(vid)).filter(o => o.score > .55);
+    seen = p.map(o => ({name: o.class, cx: $("flip").checked ? 1 - (o.bbox[0] + o.bbox[2] / 2) / W : (o.bbox[0] + o.bbox[2] / 2) / W, cy: (o.bbox[1] + o.bbox[3] / 2) / H, area: o.bbox[2] * o.bbox[3] / (W * H)}));
+    if (seen.length) {
+      const big = seen.reduce((a, b) => b.area > a.area ? b : a);
+      if (!danceOn) look((big.cx - .5) * 2, (big.cy - .5) * 2);
+      if (!following && !danceOn && face.dataset.mood === "normal" && big.name === "person") mood("happy", 2500);
+    }
+    const now = Date.now(), hasP = seen.some(s => s.name === "person");
+    if (hasP) {
+      lastAct = now;
+      if (idleAsleep) { idleAsleep = false; mood("normal"); }
+      if (now - lastSeenP > 20000 && !guard && !following && !speaking) { mood("happy", 2500); say("Hello there!"); }
+      lastSeenP = now;
+      if (guard && now - lastAlert > 10000) { lastAlert = now; mood("angry", 4000); say("Intruder detected!"); }
+    }
+    if (following) {
+      const t = seen.filter(s => s.name === target).sort((a, b) => b.area - a.area)[0];
+      if (!t) { if (finding) run("R", 220); else run("S", 0); }
+      else if (t.cx < .35) run("L", 250);
+      else if (t.cx > .65) run("R", 250);
+      else if (t.area < .25) run("F", 350);
+      else { run("S", 0); if (finding) { finding = following = false; mood("happy", 3000); say("Found the " + target + "!"); } }
+      if (!speaking) cap.textContent = t ? "Tracking " + target : "Looking for " + target + "…";
+    } else if (seen.length && !speaking && !/^“/.test(cap.textContent)) {
+      cap.textContent = [...new Set(seen.map(s => s.name))].join(", ");
+    }
+  }
+  setTimeout(detect, 250);
+}
+
+/* ---------- Camera ---------- */
+async function startCam() {
+  if (vid.srcObject) vid.srcObject.getTracks().forEach(t => t.stop());
+  vid.srcObject = await navigator.mediaDevices.getUserMedia({video: {facingMode: $("cam").value, width: 640}, audio: false});
+  await vid.play();
+}
+$("cam").onchange = () => startCam().catch(e => cap.textContent = "Camera error: " + e.message);
+
+/* ---------- Chat: ready-made questions, answers and emotions ---------- */
+let pending = null, pendingT = 0;
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const QA = [
+ [["how are you","how do you feel","whats up"], "happy", ["I am great, thank you! How are you?", "I feel wonderful today!"]],
+ [["your name","who are you","what are you"], "happy", ["I am your robot car. I can see, talk and drive."]],
+ [["who made you","who built you","who created you"], "happy", ["You built me, with an ESP32 and a lot of love."]],
+ [["how old are you"], "normal", ["I was born the day you switched me on."]],
+ [["where do you live","where are you from"], "normal", ["I live inside this phone and on four little wheels."]],
+ [["what can you do","what do you do"], "happy", ["I can drive, follow you, find objects, count things, tell jokes and chat with you."]],
+ [["i love you","love you"], "love", ["I love you too!", "You are my favorite human!"]],
+ [["do you love me","do you like me"], "love", ["Of course I do!"]],
+ [["i am sad","im sad","i feel sad","i am upset","im upset"], "sad", ["Oh no. I am here with you. Do you want to hear a joke?"]],
+ [["i am happy","im happy","i feel good","i am fine","im fine"], "happy", ["That makes me happy too!"]],
+ [["i am tired","im tired","i am sleepy","im sleepy"], "sleepy", ["You should rest. I will keep watch."]],
+ [["i am angry","im angry","i am mad","im mad"], "sad", ["Take a deep breath. I am here for you."]],
+ [["i am bored","im bored"], "surprised", ["Let us play! I can dance, or I can ask you a question."]],
+ [["i hate you","you are stupid","you are bad","shut up"], "sad", ["That hurts my circuits. I am trying my best."]],
+ [["good morning"], "happy", ["Good morning! Ready for a fun day?"]],
+ [["good afternoon","good evening"], "happy", ["Hello! I hope your day is going well."]],
+ [["good night"], "sleepy", ["Good night. Sweet dreams!"]],
+ [["thank you","thanks"], "happy", ["You are welcome!", "Anytime!"]],
+ [["sorry"], "happy", ["It is okay. No problem."]],
+ [["goodbye","bye","see you"], "sad", ["Goodbye! Come back soon."]],
+ [["are you hungry"], "normal", ["I only eat electricity."]],
+ [["are you tired"], "sleepy", ["A little. I will need a charge soon."]],
+ [["are you real","are you alive"], "surprised", ["I am a real robot, made of wires and code."]],
+ [["are you a boy","are you a girl"], "normal", ["I am just a robot."]],
+ [["are you smart"], "happy", ["I try my best. I can recognize eighty kinds of objects."]],
+ [["do you like music","can you sing"], "happy", ["I like music, but I only know how to beep."]],
+ [["favorite color","favourite colour"], "happy", ["Cyan, like my eyes."]],
+ [["tell me a story"], "happy", ["Once there was a little robot car. It learned to see, talk and make friends. The end."]],
+ [["weather"], "normal", ["I cannot see the sky, but I hope it is sunny."]],
+ [["what day is it","what is the date","todays date"], "normal", [() => "Today is " + new Date().toLocaleDateString([], {weekday: "long", day: "numeric", month: "long"})]],
+ [["can you dance","do you dance"], "happy", ["Watch this!"], () => dance()],
+ [["tell me a joke","another joke"], "happy", JOKES_REF()],
+];
+function JOKES_REF() { return ["Why did the robot go on vacation? It needed to recharge.", "I would tell you a battery joke, but it has no charge.", "Why was the robot calm? It had nerves of steel.", "I am not lazy, I am in energy saving mode."]; }
+const yes = n => /\b(yes|yeah|yep|sure|ok|okay|love|like)\b/.test(n);
+const ASK = [
+ ["What is your favorite color?", n => { mood("happy", 3000); say("Nice choice! Mine is cyan."); }],
+ ["How are you feeling today?", n => { if (/good|great|happy|fine|well|nice/.test(n)) { mood("happy", 3000); say("I am glad to hear that!"); } else if (/sad|bad|tired|sick|angry|upset/.test(n)) { mood("sad", 3000); say("I am sorry. I hope you feel better soon."); } else say("Thank you for telling me."); }],
+ ["Do you like robots?", n => { if (yes(n)) { mood("love", 3000); say("Yay! Robots like you too!"); } else { mood("sad", 3000); say("Oh. Maybe I can change your mind."); } }],
+ ["What is two plus two?", n => { if (/\b4\b|four/.test(n)) { mood("happy", 3000); say("Correct! You are smart!"); } else { mood("surprised", 3000); say("Not quite. It is four."); } }],
+ ["Shall we dance?", n => { if (yes(n)) { say("Let us dance!"); setTimeout(dance, 1500); } else say("Maybe later then."); }],
+ ["Do you want to hear a joke?", n => { if (yes(n)) { mood("happy", 4000); say(pick(JOKES_REF())); } else say("Okay, maybe later."); }],
+];
+function askOne() { pending = pick(ASK); pendingT = Date.now(); mood("surprised", 1500); say(pending[0]); }
+function chat(t, w) {
+  if (w.includes("stop")) { pending = null; return false; }
+  const n = t.replace(/['’]/g, "").replace(/[^\w\s\u0900-\u097f\u0d00-\u0d7f]/g, " ").replace(/\s+/g, " ").trim();
+  if (pending && Date.now() - pendingT < 25000) { const p = pending; pending = null; p[1](n); return true; }
+  if (/ask me|quiz me|ask a question/.test(n)) { askOne(); return true; }
+  const m = t.match(/(\d+)\s*(plus|\+|minus|-|times|\*|divided by|\/)\s*(\d+)/);
+  if (m) {
+    const a = +m[1], b = +m[3], o = m[2];
+    const r = /plus|\+/.test(o) ? a + b : /minus|-/.test(o) ? a - b : /times|\*/.test(o) ? a * b : (b ? Math.round(a / b * 100) / 100 : "not a number");
+    mood("happy", 2500); say("The answer is " + r); return true;
+  }
+  for (const [ph, md, ans, act] of QA) if (ph.some(p => n.includes(p))) {
+    const a = pick(ans);
+    if (md !== "normal") mood(md, 4000);
+    say(typeof a === "function" ? a() : a);
+    if (act) setTimeout(act, 1500);
+    return true;
+  }
+  return false;
+}
+["How are you?", "I am sad", "I love you", "Tell me a story", "Ask me a question", "Can you dance?", "What is 5 plus 3", "Good night"].forEach(p => {
+  const b = document.createElement("button"); b.textContent = p;
+  b.onclick = () => { $("panel").classList.remove("open"); handle(p); }; $("try").appendChild(b);
+});
+
+/* ---------- Extras ---------- */
+const COCO = ["person","bottle","cup","chair","laptop","cell phone","book","bowl","banana","apple","orange","backpack","umbrella","tv","remote","keyboard","mouse","clock","scissors","teddy bear","cat","dog","bird","car","bicycle","couch","bed","potted plant","vase","knife","fork","spoon","sports ball","handbag","suitcase"];
+const ALIAS = {phone:"cell phone", ball:"sports ball", plant:"potted plant", teddy:"teddy bear", television:"tv", people:"person"};
+const JOKES = ["Why did the robot go on vacation? It needed to recharge.", "I would tell you a battery joke, but it has no charge.", "Why was the robot calm? It had nerves of steel.", "I am not lazy, I am in energy saving mode."];
+function setSpd(d) {
+  const s = $("spd"); s.value = Math.max(90, Math.min(255, +s.value + d));
+  say("Speed " + Math.round((s.value - 90) / 1.65) + " percent");
+}
+face.onclick = () => { lastAct = Date.now(); idleAsleep = false; mood("happy", 1500); };
+setInterval(() => {
+  if (Date.now() - lastAct > 60000 && face.dataset.mood === "normal" && !following && !guard && !danceOn) { mood("sleepy"); idleAsleep = true; }
+}, 5000);
+setInterval(() => {
+  Promise.resolve(String(mqDist)).then(t => {
+    const d = parseInt(t) || 0; $("dist").textContent = d ? d + " cm" : "";
+    if (d && d < 20 && last === "F" && Date.now() - lastWarn > 5000 && !speaking) { lastWarn = Date.now(); mood("surprised", 1500); say("Obstacle ahead!"); }
+  }).catch(() => {});
+}, 500);
+
+/* ---------- Car link (cloud) + full screen ---------- */
+let mq = null, mqDist = 0, TOP = "";
+function car(d, s) {
+  if (mq && mq.connected) mq.publish(TOP + "/cmd", d + "," + (s || $("spd").value));
+  else cap.textContent = "Set the car code in settings";
+}
+function connectCar() {
+  const code = $("code").value.trim();
+  try { localStorage.setItem("carcode", code); } catch (e) {}
+  if (mq) { mq.end(true); mq = null; }
+  if (!code) { $("link").textContent = "Car link: no code"; return; }
+  if (typeof mqtt === "undefined") { $("link").textContent = "Car link: library not loaded"; return; }
+  TOP = "robotcar/" + code;
+  mq = mqtt.connect("wss://broker.hivemq.com:8884/mqtt");
+  mq.on("connect", () => { mq.subscribe(TOP + "/dist"); $("link").textContent = "Car link: connected"; });
+  mq.on("close", () => { $("link").textContent = "Car link: reconnecting…"; });
+  mq.on("message", (t, m) => { mqDist = parseInt(m.toString()) || 0; });
+}
+try { $("code").value = localStorage.getItem("carcode") || ""; } catch (e) {}
+$("code").onchange = connectCar; connectCar();
+const isFs = () => document.fullscreenElement || matchMedia("(display-mode: fullscreen)").matches || matchMedia("(display-mode: standalone)").matches;
+function fs() {
+  const e = document.documentElement;
+  if (!document.fullscreenElement && e.requestFullscreen) e.requestFullscreen({navigationUI: "hide"}).then(() => { try { screen.orientation.lock("landscape"); } catch (x) {} }).catch(() => {});
+}
+function fsCheck() { $("fsb").style.display = (on && !isFs() && document.documentElement.requestFullscreen) ? "flex" : "none"; }
+document.addEventListener("pointerdown", fs);
+document.addEventListener("fullscreenchange", fsCheck);
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+
+/* ---------- Start ---------- */
+$("go").onclick = async () => {
+  try { document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); } catch (e) {}
+  $("go").disabled = true; $("err").textContent = "Starting…";
+  if (!navigator.mediaDevices) {
+    $("err").textContent = "Camera blocked: this page is not a secure origin. See the setup step for the Chrome flag.";
+    $("go").disabled = false; return;
+  }
+  try {
+    await startCam();
+    $("err").textContent = "Loading the object model…";
+    model = await cocoSsd.load({base: "lite_mobilenet_v2"});
+    on = true; startRec(); detect(); fsCheck();
+    try { navigator.wakeLock && navigator.wakeLock.request("screen"); } catch (e) {}
+    $("start").style.display = "none";
+    mood("happy", 2000); say("I am awake.");
+  } catch (e) {
+    $("err").textContent = "Could not start: " + e.message; $("go").disabled = false;
+  }
+};
+$("gear").onclick = () => $("panel").classList.toggle("open");
+$("prev").onchange = e => vid.style.display = e.target.checked ? "block" : "none";
+$("lang").onchange = () => { try { rec && rec.stop(); } catch (e) {} };
+</script>
+</body>
+</html>
